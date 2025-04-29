@@ -229,6 +229,54 @@
             font-size: 0.875rem;
             background-color: #d1d5db;
         }
+
+        /* 新增：手机窄屏幕适配样式 */
+        @media (max-width: 480px) {
+            .keyboard-container {
+                padding: 0.5rem;
+            }
+            .keyboard-row {
+                gap: 0.25rem;
+                margin-bottom: 0.25rem;
+            }
+            .key {
+                min-width: 7vw;  /* 随屏幕宽度动态调整 */
+                height: 48px;
+                font-size: 0.875rem;
+                padding: 0 0.25rem;
+                flex-shrink: 1;  /* 允许按键收缩 */
+            }
+            .key-wide {
+                min-width: 10vw;
+                font-size: 0.75rem;
+            }
+            .board-cell {
+                width: 44px;  /* 同步调整棋盘单元格 */
+                height: 44px;
+                font-size: 1.25rem;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .key {
+                min-width: 6.5vw;
+                height: 44px;
+                font-size: 0.75rem;
+            }
+            .key-wide {
+                min-width: 9vw;
+            }
+            .board-cell {
+                width: 40px;
+                height: 40px;
+                font-size: 1.125rem;
+            }
+        }
+
+        /* 触摸反馈优化 */
+        .key {
+            touch-action: manipulation;  /* 避免长按弹出菜单 */
+        }
     </style>
 </head>
 <body>
@@ -270,6 +318,7 @@
     <div class="keyboard-container" id="virtualKeyboard"></div>
 
     <script>
+        // 原JavaScript逻辑保持不变（已包含键盘初始化、输入处理等核心功能）
         let wordList = [];
         let currentRound = {
             targetWord: null,
