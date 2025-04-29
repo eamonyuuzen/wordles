@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自定义Wordle游戏（修复提示焦点问题）</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .wordle-container { 
+            display: inline-grid; 
+            gap: 4px; 
+            padding: 8px; 
+            background-color: #e5e7eb; 
+            border-radius: 8px; 
+        }
+        .wordle-row { 
+            display: grid; 
+            grid-template-columns: repeat(var(--word-length), 50px); 
+            gap: 4px; 
+        }
+        .wordle-cell { 
+            width: 50px; 
+            height: 50px; 
+            border: 2px solid #d1d5db; 
+            font-size: 24px; 
+            font-weight: bold; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            background-color: white;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        .correct { background-color: #65a30d; border-color: #65a30d; color: white; }
+        .present { background-color: #ca8a04; border-color: #ca8a04; color: white; }
+        .absent { background-color: #4b5563; border-color: #4b5563; color: white; }
+        .input-container { 
+            width: 100%; 
+            max-width: 600px; 
+            margin: 1rem 0; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 1rem; 
+        }
+        .file-upload { 
+            color: #059669; 
+            border: 2px dashed #a7f3d0; 
+            background-color: #f0fdf4; 
+            padding: 2rem; 
+            border-radius: 0.5rem; 
+            text-align: center; 
+            cursor: pointer;
+            width: 100%;
+        }
+        .text-input { 
+            width: 100%; 
+            height: 150px; 
+            padding: 1rem; 
+            border: 2px dashed #bfdbfe; 
+            border-radius: 0.5rem; 
+            background-color: #eff6ff; 
+            color: #1d4ed8; 
+            font-size: 16px; 
+            resize: vertical; 
+        }
+        .game-section { 
+            display: none; 
+            width: 100%; 
+            max-width: 600px; 
+            margin-top: 20px; 
+            align-items: center; 
+            flex-direction: column; 
+        }
+        .status-message { 
+            padding: 1rem; 
+            border-radius: 0.5rem; 
+            margin: 1rem 0; 
+            width: 80%; 
+            text-align: center;
+        }
+        .success { background-color: #dcfce7; color: #059669; }
+        .error { background-color: #fef2f2; color: #dc2626; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col items-center p-4">
+    <h1 class="text-3xl font-bold mb-6 text-gray-900">自定义Wordle游戏</h1>
+    
+    <!-- 输入容器（文件+文本双输入） -->
+    <div class="input-container" id="inputContainer">
+        <div class="file-upload" id="uploadArea">
+            <p class="text-lg font-medium">点击或拖拽选择单词库文件（.txt）</p>
+            <input type="file" id="fileInput" accept=".txt" style="display: none;">
+        </div>
+        <div>
+            <textarea 
+                id="wordInput" 
+                class="text-input" 
+                placeholder="或直接输入单词库（每行格式：单词 词性 含义，例如：apple n 苹果）"
+            ></textarea>
+            <button 
+                id="submitTextBtn" 
+                class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 mt-2"
+            >提交文本单词库</button>
+        </div>
+    </div>
+
+    <!-- 游戏区域（包含行数选择） -->
+    <div class="game-section flex" id="gameSection">
+        <div id="statusMessage" class="status-message"></div>
+        <div class="mb-4 text-gray-700">
+            猜测行数：<input type="number" id="maxRoundsInput" min="1" max="10" value="6" 
+                           class="px-2 py-1 border rounded"
+                           oninput="this.value = Math.min(Math.max(parseInt(this.value) || 6, 1), 10)">
+            <span class="text-sm text-gray-500">（1-10行）</span>
+        </div>
+        <div id="board" class="wordle-container"></div>
+        <div class="mb-4 text-gray-700" id="inputHint">请输入字母（当前单词长度：<span id="wordLength">0</span>）</div>
+        <div class="flex gap-2 mb-4">
+            <button id="hintBtn" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">获取提示</button>
+            <button id="giveUpBtn" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">放弃本轮</button>
+        </div>
+        <div id="result" class="text-xl font-medium mb-4 hidden"></div>
+        <button id="nextRoundBtn" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">开始下一轮</button>
+    </div>
+
+    <script>
+        let wordList = []; 
+        let currentRound = {
+            targetWord: null,
+            currentRow: 0,
+            currentCol: 0,
+            hintCount: 0
+        };
+
+        // 显示状态提示
+        function showStatus(message, type) {
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.textContent = message;
+            statusMessage.className = `status-message ${type}`;
+            statusMessage.style.display = 'block';
+        }
+
+        // 初始化当前轮次（支持行数选择）
+        function initRound() {
+            const maxRoundsInput = document.getElementById('maxRoundsInput');
+            const maxRounds = Math.min(Math.max(parseInt(maxRoundsInput.value) || 6, 1), 10);
+            maxRoundsInput.value = maxRounds;
+
+            currentRound.targetWord = wordList[Math.floor(Math.random() * wordList.length)];
+            currentRound.currentRow = 0;
+            currentRound.currentCol = 0;
+            currentRound.hintCount = 0;
+
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            board.style.setProperty('--word-length', currentRound.targetWord.word.length);
+
+            for (let i = 0; i < maxRounds; i++) {
+                const row = document.createElement('div');
+                row.className = 'wordle-row';
+                for (let j = 0; j < currentRound.targetWord.word.length; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'wordle-cell';
+                    row.appendChild(cell);
+                }
+                board.appendChild(row);
+            }
+
+            document.getElementById('wordLength').textContent = currentRound.targetWord.word.length;
+            showStatus(`当前单词长度：${currentRound.targetWord.word.length}，共${maxRounds}次猜测机会，开始猜测！`, 'success');
+            document.getElementById('result').classList.add('hidden');
+        }
+
+        // 通用单词库加载函数
+        function loadWordList(parsedList) {
+            if (parsedList.length === 0) throw new Error('单词库为空');
+            
+            wordList = parsedList;
+            document.getElementById('inputContainer').style.display = 'none';
+            document.getElementById('gameSection').style.display = 'flex';
+            initRound();
+        }
+
+        // 处理文件上传
+        function handleFile(file) {
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                try {
+                    const text = e.target.result;
+                    const rawList = text.split('\n').filter(line => line.trim() !== '');
+                    
+                    const parsedList = rawList.map((line, index) => {
+                        const parts = line.trim().split(/\s+/);
+                        if (parts.length !== 3) throw new Error(`文件第${index+1}行格式错误（需要"单词 词性 含义"）`);
+                        return { word: parts[0], pos: parts[1], meaning: parts[2] };
+                    });
+
+                    loadWordList(parsedList);
+                } catch (error) {
+                    showStatus(`文件错误：${error.message}`, 'error');
+                }
+            };
+
+            reader.readAsText(file);
+        }
+
+        // 处理文本输入
+        function handleInputText() {
+            const text = document.getElementById('wordInput').value.trim();
+            try {
+                const rawList = text.split('\n').filter(line => line.trim() !== '');
+                
+                const parsedList = rawList.map((line, index) => {
+                    const parts = line.trim().split(/\s+/);
+                    if (parts.length !== 3) throw new Error(`文本第${index+1}行格式错误（需要"单词 词性 含义"）`);
+                    return { word: parts[0], pos: parts[1], meaning: parts[2] };
+                });
+
+                loadWordList(parsedList);
+            } catch (error) {
+                showStatus(`文本错误：${error.message}`, 'error');
+            }
+        }
+
+        // 处理键盘输入（优化焦点和默认行为）
+        document.addEventListener('keydown', (e) => {
+            if (!currentRound.targetWord) return;
+            const maxRounds = parseInt(document.getElementById('maxRoundsInput').value) || 6;
+            if (currentRound.currentRow >= maxRounds) return;
+
+            const rows = document.querySelectorAll('#board .wordle-row');
+            const currentRowEl = rows[currentRound.currentRow];
+            const cells = currentRowEl.querySelectorAll('.wordle-cell');
+            
+            if (e.key === 'Backspace' && currentRound.currentCol > 0) {
+                e.preventDefault(); // 阻止退格键默认行为（如返回上一页）
+                currentRound.currentCol--;
+                cells[currentRound.currentCol].textContent = '';
+            } else if (/^[a-zA-Z]$/.test(e.key) && currentRound.currentCol < currentRound.targetWord.word.length) {
+                cells[currentRound.currentCol].textContent = e.key.toUpperCase();
+                currentRound.currentCol++;
+            } else if (e.key === 'Enter' && currentRound.currentCol === currentRound.targetWord.word.length) {
+                e.preventDefault(); // 阻止回车触发聚焦按钮的点击
+                checkGuess(cells);
+            }
+        });
+
+        // 检查猜测
+        function checkGuess(cells) {
+            const guess = Array.from(cells).map(cell => cell.textContent).join('').toLowerCase();
+            const target = currentRound.targetWord.word.toLowerCase();
+
+            const targetChars = [...target];
+            const guessChars = [...guess];
+            const result = [];
+            
+            guessChars.forEach((char, index) => {
+                if (char === targetChars[index]) {
+                    result[index] = 'correct';
+                    targetChars[index] = null; 
+                }
+            });
+
+            guessChars.forEach((char, index) => {
+                if (!result[index] && targetChars.includes(char)) {
+                    result[index] = 'present';
+                    targetChars[targetChars.indexOf(char)] = null; 
+                } else if (!result[index]) {
+                    result[index] = 'absent';
+                }
+            });
+
+            cells.forEach((cell, index) => {
+                cell.classList.add(result[index]);
+            });
+
+            if (guess === target) {
+                showStatus(`恭喜！你用了${currentRound.currentRow+1}次猜对了！`, 'success');
+                document.getElementById('result').textContent = `正确答案：${currentRound.targetWord.word}（${currentRound.targetWord.pos}）${currentRound.targetWord.meaning}`;
+                document.getElementById('result').classList.remove('hidden');
+                return;
+            }
+
+            currentRound.currentRow++;
+            currentRound.currentCol = 0;
+            
+            const maxRounds = parseInt(document.getElementById('maxRoundsInput').value) || 6;
+            if (currentRound.currentRow >= maxRounds) {
+                showStatus('很遗憾，已用完所有机会', 'error');
+                document.getElementById('result').textContent = `正确答案：${currentRound.targetWord.word}（${currentRound.targetWord.pos}）${currentRound.targetWord.meaning}`;
+                document.getElementById('result').classList.remove('hidden');
+            }
+        }
+
+        // 提示按钮（修复焦点问题）
+        document.getElementById('hintBtn').addEventListener('click', function() {
+            if (!currentRound.targetWord) {
+                alert('请先提交单词库并开始游戏');
+                return;
+            }
+            
+            currentRound.hintCount++;
+            let hintText = '';
+            switch(currentRound.hintCount) {
+                case 1: hintText = `词性提示：${currentRound.targetWord.pos}`; break;
+                case 2: hintText = `含义提示：${currentRound.targetWord.meaning.slice(0, Math.max(2, Math.floor(currentRound.targetWord.meaning.length * 0.6)))}...`; break;
+                case 3: hintText = `完整含义：${currentRound.targetWord.meaning}`; break;
+                default: hintText = '已用尽所有提示次数';
+            }
+            alert(hintText); 
+            this.blur(); // 点击后移除按钮焦点
+        });
+
+        // 放弃按钮
+        document.getElementById('giveUpBtn').addEventListener('click', () => {
+            if (!currentRound.targetWord) return;
+            
+            showStatus('已放弃当前轮次', 'error');
+            document.getElementById('result').textContent = `正确答案：${currentRound.targetWord.word}（${currentRound.targetWord.pos}）${currentRound.targetWord.meaning}`;
+            document.getElementById('result').classList.remove('hidden');
+        });
+
+        // 下一轮按钮
+        document.getElementById('nextRoundBtn').addEventListener('click', () => {
+            if (wordList.length === 0) {
+                showStatus('请先提交单词库', 'error');
+                return;
+            }
+            initRound(); 
+        });
+
+        // 文件上传交互
+        document.getElementById('uploadArea').addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleFile(file);
+        });
+        document.getElementById('uploadArea').addEventListener('dragover', (e) => {
+            e.preventDefault();
+            document.getElementById('uploadArea').style.backgroundColor = '#dcfce7';
+        });
+        document.getElementById('uploadArea').addEventListener('dragleave', () => {
+            document.getElementById('uploadArea').style.backgroundColor = '';
+        });
+        document.getElementById('uploadArea').addEventListener('drop', (e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
+        });
+
+        // 文本提交按钮
+        document.getElementById('submitTextBtn').addEventListener('click', handleInputText);
+    </script>
+</body>
+</html>
