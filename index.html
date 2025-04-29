@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自定义Wordle游戏（修复提示焦点问题）</title>
+    <title>自定义Wordle游戏（修复所有按钮焦点问题）</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .wordle-container { 
@@ -312,22 +312,24 @@
             this.blur(); // 点击后移除按钮焦点
         });
 
-        // 放弃按钮
-        document.getElementById('giveUpBtn').addEventListener('click', () => {
+        // 放弃按钮（修复焦点问题）
+        document.getElementById('giveUpBtn').addEventListener('click', function() {
             if (!currentRound.targetWord) return;
             
             showStatus('已放弃当前轮次', 'error');
             document.getElementById('result').textContent = `正确答案：${currentRound.targetWord.word}（${currentRound.targetWord.pos}）${currentRound.targetWord.meaning}`;
             document.getElementById('result').classList.remove('hidden');
+            this.blur(); // 点击后移除按钮焦点
         });
 
-        // 下一轮按钮
-        document.getElementById('nextRoundBtn').addEventListener('click', () => {
+        // 下一轮按钮（修复焦点问题）
+        document.getElementById('nextRoundBtn').addEventListener('click', function() {
             if (wordList.length === 0) {
                 showStatus('请先提交单词库', 'error');
                 return;
             }
             initRound(); 
+            this.blur(); // 点击后移除按钮焦点
         });
 
         // 文件上传交互
