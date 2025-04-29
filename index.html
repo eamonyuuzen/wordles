@@ -6,6 +6,7 @@
     <title>自定义Wordle游戏（大小写切换版）</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* 原样式保持不变 */
         /* 全局基础样式 */
         * {
             box-sizing: border-box;
@@ -420,12 +421,12 @@
             });
         }
 
-        // 初始化游戏轮次
+        // 初始化游戏轮次（关键修改点：移除状态重置）
         function initRound() {
             keyboardStates = {};
             initVirtualKeyboard();
-            isLowerCase = false;  // 新轮次默认恢复大写
-            document.getElementById('caseSwitch').checked = false;  // 重置开关状态
+            // 不再重置isLowerCase状态，保持用户之前的选择
+            // 原代码：isLowerCase = false;  已删除
 
             currentRound = {
                 targetWord: wordList[Math.floor(Math.random() * wordList.length)],
@@ -454,6 +455,8 @@
             document.getElementById('wordLength').textContent = currentRound.targetWord.word.length;
             showStatus(`当前单词长度：${currentRound.targetWord.word.length}，共${maxRounds}次猜测机会`, 'success');
             document.getElementById('result').classList.add('hidden');
+            // 保持选择框状态与isLowerCase同步（关键修改）
+            document.getElementById('caseSwitch').checked = isLowerCase;
         }
 
         // 处理键盘输入（新增大小写控制）
