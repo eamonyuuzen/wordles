@@ -3,278 +3,448 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自定义Wordle游戏（修复所有按钮焦点问题）</title>
+    <title>自定义Wordle游戏（输入格方向修复版）</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .wordle-container { 
-            display: inline-grid; 
-            gap: 4px; 
-            padding: 8px; 
-            background-color: #e5e7eb; 
-            border-radius: 8px; 
+        /* 全局基础样式 */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
-        .wordle-row { 
-            display: grid; 
-            grid-template-columns: repeat(var(--word-length), 50px); 
-            gap: 4px; 
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f3f4f6;
+            padding: 1rem 0;
         }
-        .wordle-cell { 
-            width: 50px; 
-            height: 50px; 
-            border: 2px solid #d1d5db; 
-            font-size: 24px; 
-            font-weight: bold; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
+
+        /* 主容器（增加底部边距避免键盘遮挡） */
+        .main-container {
+            width: 100%;
+            max-width: 600px;
+            padding: 0 1rem;
+            flex: 1;
+            margin-bottom: 220px;  /* 预留键盘高度空间 */
+        }
+
+        /* 游戏标题 */
+        .game-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #111827;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        /* 输入区域样式 */
+        .input-section {
             background-color: white;
-            border-radius: 4px;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 1.5rem;
+        }
+        .file-upload {
+            border: 2px dashed #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            text-align: center;
+            color: #6b7280;
+            cursor: pointer;
             transition: all 0.2s ease;
         }
-        .correct { background-color: #65a30d; border-color: #65a30d; color: white; }
-        .present { background-color: #ca8a04; border-color: #ca8a04; color: white; }
-        .absent { background-color: #4b5563; border-color: #4b5563; color: white; }
-        .input-container { 
-            width: 100%; 
-            max-width: 600px; 
-            margin: 1rem 0; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 1rem; 
+        .file-upload:hover {
+            border-color: #93c5fd;
+            background-color: #eff6ff;
+            color: #1d4ed8;
         }
-        .file-upload { 
-            color: #059669; 
-            border: 2px dashed #a7f3d0; 
-            background-color: #f0fdf4; 
-            padding: 2rem; 
-            border-radius: 0.5rem; 
-            text-align: center; 
-            cursor: pointer;
+        .text-input {
             width: 100%;
+            height: 120px;
+            border: 2px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+            resize: vertical;
+            font-size: 1rem;
+            color: #374151;
+            transition: border-color 0.2s ease;
         }
-        .text-input { 
-            width: 100%; 
-            height: 150px; 
-            padding: 1rem; 
-            border: 2px dashed #bfdbfe; 
-            border-radius: 0.5rem; 
-            background-color: #eff6ff; 
-            color: #1d4ed8; 
-            font-size: 16px; 
-            resize: vertical; 
+        .text-input:focus {
+            outline: none;
+            border-color: #93c5fd;
         }
-        .game-section { 
-            display: none; 
-            width: 100%; 
-            max-width: 600px; 
-            margin-top: 20px; 
-            align-items: center; 
-            flex-direction: column; 
+        .submit-btn {
+            background-color: #2563eb;
+            color: white;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
         }
-        .status-message { 
-            padding: 1rem; 
-            border-radius: 0.5rem; 
-            margin: 1rem 0; 
-            width: 80%; 
+        .submit-btn:hover {
+            background-color: #1d4ed8;
+        }
+
+        /* 游戏区域样式 */
+        .game-section {
+            background-color: white;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            margin-bottom: 1.5rem;
+        }
+        .status-message {
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
             text-align: center;
+            font-weight: 500;
         }
-        .success { background-color: #dcfce7; color: #059669; }
-        .error { background-color: #fef2f2; color: #dc2626; }
+        .status-success {
+            background-color: #dcfce7;
+            color: #059669;
+        }
+        .status-error {
+            background-color: #fef2f2;
+            color: #dc2626;
+        }
+
+        /* 棋盘样式（关键修复：行容器横向排列） */
+        .board {
+            display: flex;
+            flex-direction: column;  /* 行纵向排列 */
+            gap: 0.5rem;  /* 行间距 */
+            align-items: center;  /* 行居中 */
+            margin: 1.5rem 0;
+        }
+        .board-row {
+            display: flex;
+            gap: 0.5rem;  /* 单元格横向间距 */
+        }
+        .board-cell {
+            width: 50px;  /* 固定单元格尺寸 */
+            height: 50px;
+            border: 2px solid #e5e7eb;
+            border-radius: 0.375rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #111827;
+            background-color: white;
+        }
+        .cell-correct {
+            background-color: #65a30d;
+            border-color: #65a30d;
+            color: white;
+        }
+        .cell-present {
+            background-color: #ca8a04;
+            border-color: #ca8a04;
+            color: white;
+        }
+        .cell-absent {
+            background-color: #4b5563;
+            border-color: #4b5563;
+            color: white;
+        }
+
+        /* 控制按钮组 */
+        .control-buttons {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+            margin: 1rem 0;
+        }
+        .control-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .hint-btn { background-color: #fcd34d; color: #92400e; }
+        .hint-btn:hover { background-color: #fbbf24; }
+        .giveup-btn { background-color: #f87171; color: #991b1b; }
+        .giveup-btn:hover { background-color: #ef4444; }
+        .next-btn { background-color: #6ee7b7; color: #065f46; }
+        .next-btn:hover { background-color: #34d399; }
+
+        /* 虚拟键盘（调整定位避免遮挡） */
+        .keyboard-container {
+            width: 100%;
+            max-width: 600px;
+            background-color: white;
+            padding: 1rem;
+            border-radius: 0.75rem 0.75rem 0 0;
+            box-shadow: 0 -2px 4px rgba(0,0,0,0.05);
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+        .keyboard-row {
+            display: flex;
+            gap: 0.375rem;
+            justify-content: center;
+            margin-bottom: 0.375rem;
+        }
+        .key {
+            min-width: 40px;
+            height: 52px;
+            padding: 0 0.5rem;
+            border: none;
+            border-radius: 0.375rem;
+            background-color: #e5e7eb;
+            color: #111827;
+            font-size: 1rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+        .key:hover {
+            filter: brightness(0.9);
+        }
+        .key:active {
+            transform: scale(0.95);
+        }
+        .key-absent { background-color: #4b5563; color: white; }
+        .key-present { background-color: #ca8a04; color: white; }
+        .key-correct { background-color: #65a30d; color: white; }
+        .key-wide {
+            min-width: 64px;
+            font-size: 0.875rem;
+            background-color: #d1d5db;
+        }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen flex flex-col items-center p-4">
-    <h1 class="text-3xl font-bold mb-6 text-gray-900">自定义Wordle游戏</h1>
+<body>
+    <h1 class="game-title">自定义Wordle游戏</h1>
     
-    <!-- 输入容器（文件+文本双输入） -->
-    <div class="input-container" id="inputContainer">
-        <div class="file-upload" id="uploadArea">
-            <p class="text-lg font-medium">点击或拖拽选择单词库文件（.txt）</p>
-            <input type="file" id="fileInput" accept=".txt" style="display: none;">
-        </div>
-        <div>
+    <div class="main-container">
+        <!-- 输入区域 -->
+        <div class="input-section" id="inputContainer">
+            <div class="file-upload" id="uploadArea">
+                <p>点击或拖拽上传单词库文件（.txt）</p>
+                <input type="file" id="fileInput" accept=".txt" style="display: none;">
+            </div>
             <textarea 
                 id="wordInput" 
                 class="text-input" 
-                placeholder="或直接输入单词库（每行格式：单词 词性 含义，例如：apple n 苹果）"
+                placeholder="或直接输入单词（每行格式：单词 词性 含义，如：apple n 苹果）"
             ></textarea>
-            <button 
-                id="submitTextBtn" 
-                class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 mt-2"
-            >提交文本单词库</button>
+            <button id="submitTextBtn" class="submit-btn">提交单词库</button>
+        </div>
+
+        <!-- 游戏区域 -->
+        <div class="game-section" id="gameSection" style="display: none;">
+            <div id="statusMessage" class="status-message"></div>
+            <div class="mb-2 text-sm text-gray-600">
+                猜测行数：<input type="number" id="maxRoundsInput" min="1" max="10" value="6" class="px-1 border rounded">
+            </div>
+            <div id="board" class="board"></div>  <!-- 棋盘容器 -->
+            <div id="inputHint" class="text-center text-gray-600 mb-2">当前单词长度：<span id="wordLength">0</span></div>
+            <div id="result" class="text-center font-bold text-xl mb-2 hidden"></div>
+            <div class="control-buttons">  <!-- 控制按钮组 -->
+                <button id="hintBtn" class="control-btn hint-btn">获取提示</button>
+                <button id="giveUpBtn" class="control-btn giveup-btn">放弃本轮</button>
+                <button id="nextRoundBtn" class="control-btn next-btn">开始下一轮</button>
+            </div>
         </div>
     </div>
 
-    <!-- 游戏区域（包含行数选择） -->
-    <div class="game-section flex" id="gameSection">
-        <div id="statusMessage" class="status-message"></div>
-        <div class="mb-4 text-gray-700">
-            猜测行数：<input type="number" id="maxRoundsInput" min="1" max="10" value="6" 
-                           class="px-2 py-1 border rounded"
-                           oninput="this.value = Math.min(Math.max(parseInt(this.value) || 6, 1), 10)">
-            <span class="text-sm text-gray-500">（1-10行）</span>
-        </div>
-        <div id="board" class="wordle-container"></div>
-        <div class="mb-4 text-gray-700" id="inputHint">请输入字母（当前单词长度：<span id="wordLength">0</span>）</div>
-        <div class="flex gap-2 mb-4">
-            <button id="hintBtn" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">获取提示</button>
-            <button id="giveUpBtn" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">放弃本轮</button>
-        </div>
-        <div id="result" class="text-xl font-medium mb-4 hidden"></div>
-        <button id="nextRoundBtn" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">开始下一轮</button>
-    </div>
+    <!-- 虚拟键盘 -->
+    <div class="keyboard-container" id="virtualKeyboard"></div>
 
     <script>
-        let wordList = []; 
+        let wordList = [];
         let currentRound = {
             targetWord: null,
             currentRow: 0,
             currentCol: 0,
             hintCount: 0
         };
+        let keyboardStates = {};
 
         // 显示状态提示
         function showStatus(message, type) {
-            const statusMessage = document.getElementById('statusMessage');
-            statusMessage.textContent = message;
-            statusMessage.className = `status-message ${type}`;
-            statusMessage.style.display = 'block';
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message;
+            statusEl.className = `status-message status-${type}`;
+            statusEl.style.display = 'block';
         }
 
-        // 初始化当前轮次（支持行数选择）
-        function initRound() {
-            const maxRoundsInput = document.getElementById('maxRoundsInput');
-            const maxRounds = Math.min(Math.max(parseInt(maxRoundsInput.value) || 6, 1), 10);
-            maxRoundsInput.value = maxRounds;
+        // 初始化虚拟键盘
+        function initVirtualKeyboard() {
+            const layout = [
+                ['Q','W','E','R','T','Y','U','I','O','P'],
+                ['A','S','D','F','G','H','J','K','L'],
+                ['←','Z','X','C','V','B','N','M','↵']
+            ];
+            const keyboard = document.getElementById('virtualKeyboard');
+            keyboard.innerHTML = '';
 
-            currentRound.targetWord = wordList[Math.floor(Math.random() * wordList.length)];
-            currentRound.currentRow = 0;
-            currentRound.currentCol = 0;
-            currentRound.hintCount = 0;
+            layout.forEach(rowChars => {
+                const row = document.createElement('div');
+                row.className = 'keyboard-row';
+                
+                rowChars.forEach(char => {
+                    const key = document.createElement('button');
+                    key.className = `key ${char === '←' || char === '↵' ? 'key-wide' : ''}`;
+                    key.textContent = char;
+                    key.dataset.char = char;
+                    key.addEventListener('click', handleKeyClick);
+                    row.appendChild(key);
+                });
+                
+                keyboard.appendChild(row);
+            });
+        }
+
+        // 处理键盘点击
+        function handleKeyClick(e) {
+            const char = e.target.dataset.char;
+            if (!currentRound.targetWord) return;
+
+            if (char === '←') {
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace' }));
+            } else if (char === '↵') {
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+            } else if (/^[A-Z]$/.test(char)) {
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: char.toLowerCase() }));
+            }
+        }
+
+        // 更新键盘状态
+        function updateKeyboardStatus(guessChars, result) {
+            guessChars.forEach((char, index) => {
+                const currentStatus = keyboardStates[char] || 'default';
+                const newStatus = result[index];
+                
+                if (newStatus === 'correct' || 
+                    (newStatus === 'present' && currentStatus !== 'correct') ||
+                    (newStatus === 'absent' && currentStatus === 'default')) {
+                    keyboardStates[char] = newStatus;
+                }
+            });
+
+            document.querySelectorAll('.key').forEach(key => {
+                const char = key.textContent.toUpperCase();
+                if (char === '←' || char === '↵') return;
+                
+                key.className = `key ${keyboardStates[char] ? `key-${keyboardStates[char]}` : ''}`;
+            });
+        }
+
+        // 初始化游戏轮次（关键修复：行容器创建）
+        function initRound() {
+            keyboardStates = {};
+            initVirtualKeyboard();
+
+            currentRound = {
+                targetWord: wordList[Math.floor(Math.random() * wordList.length)],
+                currentRow: 0,
+                currentCol: 0,
+                hintCount: 0
+            };
 
             const board = document.getElementById('board');
-            board.innerHTML = '';
-            board.style.setProperty('--word-length', currentRound.targetWord.word.length);
+            board.innerHTML = '';  // 清空旧棋盘
 
+            const maxRounds = Math.min(Math.max(parseInt(document.getElementById('maxRoundsInput').value) || 6, 1), 10);
             for (let i = 0; i < maxRounds; i++) {
-                const row = document.createElement('div');
-                row.className = 'wordle-row';
+                const row = document.createElement('div');  // 创建行容器
+                row.className = 'board-row';  // 应用行样式（横向排列）
+                
+                // 为每行创建单元格
                 for (let j = 0; j < currentRound.targetWord.word.length; j++) {
                     const cell = document.createElement('div');
-                    cell.className = 'wordle-cell';
+                    cell.className = 'board-cell';  // 应用单元格样式（正方形）
                     row.appendChild(cell);
                 }
-                board.appendChild(row);
+                
+                board.appendChild(row);  // 将行添加到棋盘容器
             }
 
             document.getElementById('wordLength').textContent = currentRound.targetWord.word.length;
-            showStatus(`当前单词长度：${currentRound.targetWord.word.length}，共${maxRounds}次猜测机会，开始猜测！`, 'success');
+            showStatus(`当前单词长度：${currentRound.targetWord.word.length}，共${maxRounds}次猜测机会`, 'success');
             document.getElementById('result').classList.add('hidden');
         }
 
-        // 通用单词库加载函数
-        function loadWordList(parsedList) {
-            if (parsedList.length === 0) throw new Error('单词库为空');
-            
-            wordList = parsedList;
-            document.getElementById('inputContainer').style.display = 'none';
-            document.getElementById('gameSection').style.display = 'flex';
-            initRound();
-        }
-
-        // 处理文件上传
-        function handleFile(file) {
-            const reader = new FileReader();
-            
-            reader.onload = (e) => {
-                try {
-                    const text = e.target.result;
-                    const rawList = text.split('\n').filter(line => line.trim() !== '');
-                    
-                    const parsedList = rawList.map((line, index) => {
-                        const parts = line.trim().split(/\s+/);
-                        if (parts.length !== 3) throw new Error(`文件第${index+1}行格式错误（需要"单词 词性 含义"）`);
-                        return { word: parts[0], pos: parts[1], meaning: parts[2] };
-                    });
-
-                    loadWordList(parsedList);
-                } catch (error) {
-                    showStatus(`文件错误：${error.message}`, 'error');
-                }
-            };
-
-            reader.readAsText(file);
-        }
-
-        // 处理文本输入
-        function handleInputText() {
-            const text = document.getElementById('wordInput').value.trim();
-            try {
-                const rawList = text.split('\n').filter(line => line.trim() !== '');
-                
-                const parsedList = rawList.map((line, index) => {
-                    const parts = line.trim().split(/\s+/);
-                    if (parts.length !== 3) throw new Error(`文本第${index+1}行格式错误（需要"单词 词性 含义"）`);
-                    return { word: parts[0], pos: parts[1], meaning: parts[2] };
-                });
-
-                loadWordList(parsedList);
-            } catch (error) {
-                showStatus(`文本错误：${error.message}`, 'error');
-            }
-        }
-
-        // 处理键盘输入（优化焦点和默认行为）
+        // 处理键盘输入
         document.addEventListener('keydown', (e) => {
             if (!currentRound.targetWord) return;
             const maxRounds = parseInt(document.getElementById('maxRoundsInput').value) || 6;
             if (currentRound.currentRow >= maxRounds) return;
 
-            const rows = document.querySelectorAll('#board .wordle-row');
-            const currentRowEl = rows[currentRound.currentRow];
-            const cells = currentRowEl.querySelectorAll('.wordle-cell');
-            
+            const rows = document.querySelectorAll('.board-row');  // 获取所有行容器
+            const currentRow = rows[currentRound.currentRow];  // 当前行
+            const cells = currentRow.querySelectorAll('.board-cell');  // 当前行的单元格
+
             if (e.key === 'Backspace' && currentRound.currentCol > 0) {
-                e.preventDefault(); // 阻止退格键默认行为（如返回上一页）
+                e.preventDefault();
                 currentRound.currentCol--;
                 cells[currentRound.currentCol].textContent = '';
             } else if (/^[a-zA-Z]$/.test(e.key) && currentRound.currentCol < currentRound.targetWord.word.length) {
                 cells[currentRound.currentCol].textContent = e.key.toUpperCase();
                 currentRound.currentCol++;
             } else if (e.key === 'Enter' && currentRound.currentCol === currentRound.targetWord.word.length) {
-                e.preventDefault(); // 阻止回车触发聚焦按钮的点击
+                e.preventDefault();
                 checkGuess(cells);
             }
         });
 
         // 检查猜测
         function checkGuess(cells) {
-            const guess = Array.from(cells).map(cell => cell.textContent).join('').toLowerCase();
+            const guess = Array.from(cells).map(c => c.textContent).join('').toLowerCase();
             const target = currentRound.targetWord.word.toLowerCase();
-
-            const targetChars = [...target];
-            const guessChars = [...guess];
+            const guessChars = [...guess.toUpperCase()];
+            const targetChars = [...target.toUpperCase()];
             const result = [];
-            
-            guessChars.forEach((char, index) => {
-                if (char === targetChars[index]) {
-                    result[index] = 'correct';
-                    targetChars[index] = null; 
+
+            // 第一遍：检查正确位置
+            guessChars.forEach((char, i) => {
+                if (char === targetChars[i]) {
+                    result[i] = 'correct';
+                    targetChars[i] = null;
+                } else {
+                    result[i] = null;
                 }
             });
 
-            guessChars.forEach((char, index) => {
-                if (!result[index] && targetChars.includes(char)) {
-                    result[index] = 'present';
-                    targetChars[targetChars.indexOf(char)] = null; 
-                } else if (!result[index]) {
-                    result[index] = 'absent';
+            // 第二遍：检查存在但位置错误
+            guessChars.forEach((char, i) => {
+                if (!result[i]) {
+                    if (targetChars.includes(char)) {
+                        result[i] = 'present';
+                        targetChars[targetChars.indexOf(char)] = null;
+                    } else {
+                        result[i] = 'absent';
+                    }
                 }
             });
 
-            cells.forEach((cell, index) => {
-                cell.classList.add(result[index]);
+            // 更新单元格颜色
+            cells.forEach((cell, i) => {
+                cell.classList.add(`cell-${result[i]}`);
             });
 
+            updateKeyboardStatus(guessChars, result);
+
+            // 胜负判断
             if (guess === target) {
                 showStatus(`恭喜！你用了${currentRound.currentRow+1}次猜对了！`, 'success');
                 document.getElementById('result').textContent = `正确答案：${currentRound.targetWord.word}（${currentRound.targetWord.pos}）${currentRound.targetWord.meaning}`;
@@ -284,7 +454,7 @@
 
             currentRound.currentRow++;
             currentRound.currentCol = 0;
-            
+
             const maxRounds = parseInt(document.getElementById('maxRoundsInput').value) || 6;
             if (currentRound.currentRow >= maxRounds) {
                 showStatus('很遗憾，已用完所有机会', 'error');
@@ -293,68 +463,82 @@
             }
         }
 
-        // 提示按钮（修复焦点问题）
-        document.getElementById('hintBtn').addEventListener('click', function() {
-            if (!currentRound.targetWord) {
-                alert('请先提交单词库并开始游戏');
-                return;
-            }
-            
-            currentRound.hintCount++;
-            let hintText = '';
-            switch(currentRound.hintCount) {
-                case 1: hintText = `词性提示：${currentRound.targetWord.pos}`; break;
-                case 2: hintText = `含义提示：${currentRound.targetWord.meaning.slice(0, Math.max(2, Math.floor(currentRound.targetWord.meaning.length * 0.6)))}...`; break;
-                case 3: hintText = `完整含义：${currentRound.targetWord.meaning}`; break;
-                default: hintText = '已用尽所有提示次数';
-            }
-            alert(hintText); 
-            this.blur(); // 点击后移除按钮焦点
-        });
+        // 提交单词库逻辑
+        function loadWordList(parsedList) {
+            wordList = parsedList;
+            document.getElementById('inputContainer').style.display = 'none';
+            document.getElementById('gameSection').style.display = 'block';
+            initRound();
+        }
 
-        // 放弃按钮（修复焦点问题）
-        document.getElementById('giveUpBtn').addEventListener('click', function() {
-            if (!currentRound.targetWord) return;
-            
-            showStatus('已放弃当前轮次', 'error');
-            document.getElementById('result').textContent = `正确答案：${currentRound.targetWord.word}（${currentRound.targetWord.pos}）${currentRound.targetWord.meaning}`;
-            document.getElementById('result').classList.remove('hidden');
-            this.blur(); // 点击后移除按钮焦点
-        });
-
-        // 下一轮按钮（修复焦点问题）
-        document.getElementById('nextRoundBtn').addEventListener('click', function() {
-            if (wordList.length === 0) {
-                showStatus('请先提交单词库', 'error');
-                return;
-            }
-            initRound(); 
-            this.blur(); // 点击后移除按钮焦点
-        });
-
-        // 文件上传交互
+        // 文件上传处理
         document.getElementById('uploadArea').addEventListener('click', () => {
             document.getElementById('fileInput').click();
         });
         document.getElementById('fileInput').addEventListener('change', (e) => {
             const file = e.target.files[0];
-            if (file) handleFile(file);
-        });
-        document.getElementById('uploadArea').addEventListener('dragover', (e) => {
-            e.preventDefault();
-            document.getElementById('uploadArea').style.backgroundColor = '#dcfce7';
-        });
-        document.getElementById('uploadArea').addEventListener('dragleave', () => {
-            document.getElementById('uploadArea').style.backgroundColor = '';
-        });
-        document.getElementById('uploadArea').addEventListener('drop', (e) => {
-            e.preventDefault();
-            const file = e.dataTransfer.files[0];
-            if (file) handleFile(file);
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const lines = e.target.result.split('\n').filter(l => l.trim());
+                    const parsed = lines.map(line => {
+                        const [word, pos, meaning] = line.trim().split(/\s+/);
+                        return { word, pos, meaning };
+                    });
+                    loadWordList(parsed);
+                } catch (error) {
+                    showStatus(`单词库格式错误：${error.message}`, 'error');
+                }
+            };
+            reader.readAsText(file);
         });
 
-        // 文本提交按钮
-        document.getElementById('submitTextBtn').addEventListener('click', handleInputText);
+        // 文本提交处理
+        document.getElementById('submitTextBtn').addEventListener('click', () => {
+            try {
+                const text = document.getElementById('wordInput').value.trim();
+                const lines = text.split('\n').filter(l => l.trim());
+                const parsed = lines.map(line => {
+                    const [word, pos, meaning] = line.trim().split(/\s+/);
+                    return { word, pos, meaning };
+                });
+                loadWordList(parsed);
+            } catch (error) {
+                showStatus(`单词库格式错误：${error.message}`, 'error');
+            }
+        });
+
+        // 功能按钮事件
+        document.getElementById('hintBtn').addEventListener('click', function() {
+            if (!currentRound.targetWord) return;
+            currentRound.hintCount++;
+            let hint = '';
+            switch(currentRound.hintCount) {
+                case 1: hint = `词性提示：${currentRound.targetWord.pos}`; break;
+                case 2: hint = `含义提示：${currentRound.targetWord.meaning.slice(0, 10)}...`; break;
+                case 3: hint = `完整含义：${currentRound.targetWord.meaning}`; break;
+                default: hint = '已无更多提示';
+            }
+            alert(hint);
+            this.blur();
+        });
+
+        document.getElementById('giveUpBtn').addEventListener('click', function() {
+            if (!currentRound.targetWord) return;
+            showStatus('已放弃当前轮次', 'error');
+            document.getElementById('result').textContent = `正确答案：${currentRound.targetWord.word}（${currentRound.targetWord.pos}）${currentRound.targetWord.meaning}`;
+            document.getElementById('result').classList.remove('hidden');
+            this.blur();
+        });
+
+        document.getElementById('nextRoundBtn').addEventListener('click', function() {
+            if (wordList.length === 0) {
+                showStatus('请先提交单词库', 'error');
+                return;
+            }
+            initRound();
+            this.blur();
+        });
     </script>
 </body>
 </html>
